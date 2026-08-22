@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/EsperancaSolidaria.Doacao.Application/EsperancaSolidaria.Doacao.Application.csproj" />
+    <Project Path="src/EsperancaSolidaria.Doacao.Domain/EsperancaSolidaria.Doacao.Domain.csproj" />
+    <Project Path="src/EsperancaSolidaria.Doacao.Infrastructure/EsperancaSolidaria.Doacao.Infrastructure.csproj" />
+    <Project Path="src/EsperancaSolidaria.Doacao.Worker/EsperancaSolidaria.Doacao.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/EsperancaSolidaria.Doacao.Tests/EsperancaSolidaria.Doacao.Tests.csproj" />
+  </Folder>
+</Solution>

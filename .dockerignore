@@ -1,0 +1,14 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.git/
+**/.gitignore
+**/*.user
+**/*.slnx
+**/Dockerfile
+**/.dockerignore
+**/CLAUDE.md
+**/README.md
+
+# Config de desenvolvimento local: dentro do container tudo vem por variavel de ambiente.
+**/appsettings.Development.json

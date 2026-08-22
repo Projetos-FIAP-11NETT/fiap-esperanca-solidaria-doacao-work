@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- Sdk.Web (e nao Sdk.Worker) porque o host precisa servir /health/live e /health/ready
+       para as probes do Deployment mantido no projeto de infraestrutura. -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\EsperancaSolidaria.Doacao.Infrastructure\EsperancaSolidaria.Doacao.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

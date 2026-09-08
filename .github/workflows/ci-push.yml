@@ -1,0 +1,73 @@
+name: CI - Push Validation
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+      - 'bugfix/**'
+      - 'hotfix/**'
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+
+  build-and-test:
+
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: src
+
+    steps:
+
+      - name: 01 - Checkout code
+        uses: actions/checkout@v4
+
+      - name: 02 - Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: 03 - Restore dependencies
+        run: dotnet restore ../fiap-esperanca-solidaria-doacao-work.slnx
+
+      - name: 04 - Build solution
+        run: dotnet build ../fiap-esperanca-solidaria-doacao-work.slnx --configuration Release --no-restore
+
+      - name: 05 - Run unit tests
+        run: >
+          dotnet test
+          ../tests/EsperancaSolidaria.Doacao.Tests/EsperancaSolidaria.Doacao.Tests.csproj
+          --configuration Release
+          --no-build
+
+      - name: Check if Pull Request already exists
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.PAT_PR_CREATOR }}
+        run: |
+          PR_NUMBER=$(gh pr list \
+            --base develop \
+            --head "${{ github.ref_name }}" \
+            --json number \
+            --jq '.[0].number')
+
+          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
+
+
+      - name: Create Pull Request
+        if: steps.pr.outputs.PR_NUMBER == ''
+        env:
+          GH_TOKEN: ${{ secrets.PAT_PR_CREATOR }}
+        run: |
+          gh pr create \
+            --base develop \
+            --head "${{ github.ref_name }}" \
+            --title "feat: ${{ github.ref_name }}" \
+            --body "PR criado automaticamente pelo CI."

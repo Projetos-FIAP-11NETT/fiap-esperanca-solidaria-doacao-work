@@ -49,14 +49,10 @@ jobs:
       - name: 06 - Check vulnerable packages
         shell: bash
         run: |
-          dotnet package list --project ../fiap-esperanca-solidaria-doacao-work.slnx --vulnerable > vulnerable.txt
-
-          cat vulnerable.txt
-
-          if grep -Eqi "has the following vulnerable packages|vulnerabilities found|vulnerable package" vulnerable.txt; then
-            echo "::error::Vulnerable NuGet packages were found."
-            exit 1
-          fi
+          dotnet package list \
+            --project ../fiap-esperanca-solidaria-doacao-work.slnx \
+            --vulnerable \
+            --fail-on-vulnerable
 
       - name: 07 - Check outdated packages
         shell: bash

@@ -53,7 +53,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT_PR_CREATOR }}
         run: |
           PR_NUMBER=$(gh pr list \
-            --base develop \
+            --base Development \
             --head "${{ github.ref_name }}" \
             --json number \
             --jq '.[0].number')
@@ -67,7 +67,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT_PR_CREATOR }}
         run: |
           gh pr create \
-            --base develop \
+            --base Development \
             --head "${{ github.ref_name }}" \
             --title "feat: ${{ github.ref_name }}" \
             --body "PR criado automaticamente pelo CI."

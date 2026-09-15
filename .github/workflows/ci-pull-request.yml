@@ -9,7 +9,7 @@ on:
       - opened # Quando o PR é criado
       - synchronize # Quando novos commits são enviados para um PR já existente
       - reopened # Quando um PR é fechado e depois reaberto
-      - ready_for_review # Quando o PR é criado como rascunho e depois é marcado que está pronto para revisão
+      - ready_for_review # Quando um PR é criado como rascunho e depois marcado como pronto para revisão
 
   workflow_dispatch:
 
@@ -49,11 +49,11 @@ jobs:
       - name: 06 - Check vulnerable packages
         shell: bash
         run: |
-          dotnet package list --vulnerable > vulnerable.txt
+          dotnet package list ../fiap-esperanca-solidaria-doacao-work.slnx --vulnerable > vulnerable.txt
 
           cat vulnerable.txt
 
-          if grep -q "has the following vulnerable packages" vulnerable.txt; then
+          if grep -qi "vulnerable" vulnerable.txt; then
             echo "::error::Vulnerable NuGet packages were found."
             exit 1
           fi
@@ -61,10 +61,10 @@ jobs:
       - name: 07 - Check outdated packages
         shell: bash
         run: |
-          dotnet package list --outdated > outdated.txt
+          dotnet package list ../fiap-esperanca-solidaria-doacao-work.slnx --outdated > outdated.txt
 
           cat outdated.txt
 
-          if grep -q "Project" outdated.txt; then
+          if grep -qi "outdated" outdated.txt; then
             echo "::warning::Outdated NuGet packages were found."
           fi

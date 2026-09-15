@@ -51,8 +51,19 @@ jobs:
         run: |
           dotnet package list \
             --project ../fiap-esperanca-solidaria-doacao-work.slnx \
+            --include-transitive \
             --vulnerable \
-            --fail-on-vulnerable
+            --format json \
+            > vulnerable.json
+
+          cat vulnerable.json
+
+          if grep -q '"vulnerabilities"' vulnerable.json; then
+            echo "::error::Vulnerable NuGet packages were found."
+            exit 1
+          fi
+
+          echo "No vulnerable NuGet packages found."
 
       - name: 07 - Check outdated packages
         shell: bash

@@ -12,5 +12,3 @@ public interface IUnitOfWork
 
     Task RollbackAsync(CancellationToken cancellationToken);
 }
-
-// Primeiro teste workflow: ci-push

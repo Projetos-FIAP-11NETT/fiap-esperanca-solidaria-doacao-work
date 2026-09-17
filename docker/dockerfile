@@ -1,0 +1,53 @@
+# Passo 1: Restore (copia apenas o necessario para aproveitar cache de camadas)
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS restore
+WORKDIR /app
+
+COPY ./fiap-esperanca-solidaria-doacao-work.slnx ./
+COPY ./Directory.Build.props ./
+
+COPY ./src/EsperancaSolidaria.Doacao.Application/*.csproj ./src/EsperancaSolidaria.Doacao.Application/
+COPY ./src/EsperancaSolidaria.Doacao.Domain/*.csproj ./src/EsperancaSolidaria.Doacao.Domain/
+COPY ./src/EsperancaSolidaria.Doacao.Infrastructure/*.csproj ./src/EsperancaSolidaria.Doacao.Infrastructure/
+COPY ./src/EsperancaSolidaria.Doacao.Worker/*.csproj ./src/EsperancaSolidaria.Doacao.Worker/
+COPY ./tests/EsperancaSolidaria.Doacao.Tests/*.csproj ./tests/EsperancaSolidaria.Doacao.Tests/
+
+RUN dotnet restore ./fiap-esperanca-solidaria-doacao-work.slnx
+
+# Passo 2: Build
+FROM restore AS build
+WORKDIR /app
+
+COPY ./src ./src
+COPY ./tests ./tests
+
+RUN dotnet build ./fiap-esperanca-solidaria-doacao-work.slnx \
+    -c Release \
+    --no-restore
+
+# Passo 3: Test
+FROM build AS test
+RUN dotnet test ./fiap-esperanca-solidaria-doacao-work.slnx \
+    -c Release \
+    --no-build \
+    --verbosity normal
+
+# Passo 4: Publish
+FROM build AS publish
+RUN dotnet publish ./src/EsperancaSolidaria.Doacao.Worker/EsperancaSolidaria.Doacao.Worker.csproj \
+    -c Release \
+    -o /app/publish \
+    --no-build
+
+# Passo 5: Runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+
+COPY --from=publish /app/publish ./
+
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "EsperancaSolidaria.Doacao.Worker.dll"]
+
+# docker build -f docker/dockerfile -t esperanca-solidaria/doacao-worker:latest .
+# docker run -d -p 8080:8080 --name doacao-worker esperanca-solidaria/doacao-worker:latest

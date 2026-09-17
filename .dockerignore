@@ -4,7 +4,6 @@
 **/.git/
 **/.gitignore
 **/*.user
-**/*.slnx
 **/Dockerfile
 **/.dockerignore
 **/CLAUDE.md

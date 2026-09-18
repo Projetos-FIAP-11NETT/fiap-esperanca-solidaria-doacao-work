@@ -16,18 +16,26 @@ public sealed class PaymentSimulationOptions
 
     public Dictionary<PaymentMethod, double> ApprovalRate { get; init; } = [];
 
-    internal IEnumerable<string> Validate()
+    /// <summary>
+    /// Percorre todas as formas de pagamento e reune os problemas de uma vez, para que o
+    /// arranque mostre a lista inteira em vez de derrubar o processo no primeiro erro.
+    /// </summary>
+    internal List<string> Validate()
     {
+        var errors = new List<string>();
+
         foreach (var method in Enum.GetValues<PaymentMethod>())
         {
             if (!ApprovalRate.TryGetValue(method, out var rate))
             {
-                yield return $"Payments:ApprovalRate:{method} nao foi configurada.";
+                errors.Add($"Payments:ApprovalRate:{method} nao foi configurada.");
             }
             else if (rate is < 0 or > 1)
             {
-                yield return $"Payments:ApprovalRate:{method} precisa estar entre 0 e 1.";
+                errors.Add($"Payments:ApprovalRate:{method} precisa estar entre 0 e 1.");
             }
         }
+
+        return errors;
     }
 }

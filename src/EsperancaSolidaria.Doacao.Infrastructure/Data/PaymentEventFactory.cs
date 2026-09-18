@@ -12,7 +12,6 @@ internal static class PaymentEventFactory
 {
     public static PaymentEvent Create(Guid donationId, PaymentEventType paymentEventType, string observation) =>
         new(
-            // v7 e ordenado no tempo: mantem a trilha de auditoria agrupada no indice.
             Guid.CreateVersion7(),
             donationId,
             paymentEventType,

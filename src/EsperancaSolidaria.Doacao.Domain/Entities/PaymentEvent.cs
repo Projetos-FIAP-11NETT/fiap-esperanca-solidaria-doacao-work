@@ -33,7 +33,6 @@ public sealed class PaymentEvent
         CreateAt = createAt;
     }
 
-    // Construtor usado pelo EF Core na materializacao.
     private PaymentEvent()
     {
     }

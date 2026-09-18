@@ -14,8 +14,6 @@ internal sealed class CampaignRepository(EsperancaSolidariaDbContext context) : 
             .AsNoTracking()
             .FirstOrDefaultAsync(campaign => campaign.CampaignId == campaignId, cancellationToken);
 
-    // UPDATE "Campaign" SET "TotalRaised" = "TotalRaised" + @amount
-    // WHERE "CampaignId" = @id AND "Status" = 1
     public Task<int> AddToTotalRaisedAsync(
         Guid campaignId,
         decimal amount,

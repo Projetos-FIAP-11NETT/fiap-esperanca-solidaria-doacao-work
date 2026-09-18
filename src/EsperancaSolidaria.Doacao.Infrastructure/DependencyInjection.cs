@@ -36,8 +36,6 @@ public static class DependencyInjection
         services.AddScoped<IPaymentSimulator, RandomPaymentSimulator>();
         services.AddScoped<ProcessDonationPaymentHandler>();
 
-        // Somente readiness: /health/live nao consulta dependencia nenhuma, senao um Postgres
-        // fora do ar faria o Kubernetes reiniciar os pods em vez de tira-los do trafego.
         services.AddHealthChecks()
             .AddCheck<PostgresHealthCheck>("postgres", tags: ["ready"])
             .AddCheck<SqsHealthCheck>("sqs", tags: ["ready"]);
@@ -49,8 +47,6 @@ public static class DependencyInjection
     {
         var connectionString = configuration.GetConnectionString("Postgres");
 
-        // A factory atende quem precisa de uma conexao propria (o registro do PaymentEvent
-        // Critical, que roda depois do rollback); o escopo continua tendo um contexto so.
         services.AddDbContextFactory<EsperancaSolidariaDbContext>(options =>
             options.UseNpgsql(connectionString));
 
@@ -76,8 +72,6 @@ public static class DependencyInjection
 
             if (!string.IsNullOrWhiteSpace(serviceUrl))
             {
-                // LocalStack. Preenchido, este e o unico interruptor entre o ambiente local e
-                // a AWS de verdade.
                 config.ServiceURL = serviceUrl;
                 config.AuthenticationRegion = region;
             }
@@ -86,8 +80,6 @@ public static class DependencyInjection
                 config.RegionEndpoint = RegionEndpoint.GetBySystemName(region);
             }
 
-            // Sem credencial no codigo: o SDK resolve pela cadeia padrao (variaveis de
-            // ambiente, perfil, role do pod).
             return new AmazonSQSClient(config);
         });
 

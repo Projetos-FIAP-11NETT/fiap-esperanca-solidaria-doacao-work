@@ -4,7 +4,7 @@ namespace EsperancaSolidaria.Doacao.Domain.Entities;
 
 /// <summary>
 /// Doacao criada pela API quando o doador manifesta interesse. A tabela e da API:
-/// o Worker so escreve em <see cref="Status"/>.
+/// o Worker so escreve em <see cref="DonationStatus"/>.
 /// </summary>
 /// <remarks>
 /// Pelo mesmo criterio de <see cref="Campaign"/>, so as colunas que o Worker usa estao
@@ -20,7 +20,7 @@ public sealed class Donation
 
     public PaymentMethod PaymentMethod { get; private set; }
 
-    public DonationStatus Status { get; private set; }
+    public DonationStatus DonationStatus { get; private set; }
 
     public Donation(
         Guid donationId,
@@ -33,10 +33,9 @@ public sealed class Donation
         CampaignId = campaignId;
         Amount = amount;
         PaymentMethod = paymentMethod;
-        Status = status;
+        DonationStatus = status;
     }
 
-    // Construtor usado pelo EF Core na materializacao.
     private Donation()
     {
     }

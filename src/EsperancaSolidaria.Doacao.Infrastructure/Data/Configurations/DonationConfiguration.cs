@@ -30,13 +30,12 @@ internal sealed class DonationConfiguration : IEntityTypeConfiguration<Donation>
             .HasColumnName("Amount")
             .HasPrecision(18, 2);
 
-        // Os enums sao gravados pelos valores numericos do contrato (ver DonationStatus).
         builder.Property(donation => donation.PaymentMethod)
             .HasColumnName("PaymentMethod")
             .HasConversion<int>();
 
-        builder.Property(donation => donation.Status)
-            .HasColumnName("Status")
+        builder.Property(donation => donation.DonationStatus)
+            .HasColumnName("DonationStatus")
             .HasConversion<int>();
     }
 }

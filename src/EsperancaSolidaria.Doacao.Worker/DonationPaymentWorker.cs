@@ -4,6 +4,8 @@ using System.Text.Json;
 using EsperancaSolidaria.Doacao.Application.Interfaces;
 using EsperancaSolidaria.Doacao.Application.Commands;
 
+using Microsoft.Extensions.Options;
+
 namespace EsperancaSolidaria.Doacao.Worker;
 
 /// <summary>
@@ -18,10 +20,14 @@ namespace EsperancaSolidaria.Doacao.Worker;
 public sealed class DonationPaymentWorker(
     IPaymentQueue queue,
     IServiceScopeFactory scopeFactory,
+    IOptions<WorkerOptions> workerOptions,
     ILogger<DonationPaymentWorker> logger) : BackgroundService
 {
     /// <summary>Teto para uma mensagem em voo, para que um banco travado nao segure o pod.</summary>
-    private static readonly TimeSpan ProcessingTimeout = TimeSpan.FromSeconds(30);
+    private readonly TimeSpan processingTimeout = TimeSpan.FromSeconds(
+        workerOptions.Value.ProcessingTimeoutSeconds > 0
+            ? workerOptions.Value.ProcessingTimeoutSeconds
+            : throw new InvalidOperationException("Worker:ProcessingTimeoutSeconds precisa ser maior que zero."));
 
     /// <summary>Respiro depois de uma falha ao falar com a fila, para nao girar em vazio.</summary>
     private static readonly TimeSpan ReceiveFailureBackoff = TimeSpan.FromSeconds(5);
@@ -53,7 +59,6 @@ public sealed class DonationPaymentWorker(
 
             if (messages.Count == 0)
             {
-                // Debug, e nao Information: com long polling de 20s isso repete o dia inteiro.
                 logger.LogDebug("Nenhuma mensagem na fila neste ciclo.");
                 continue;
             }
@@ -62,8 +67,7 @@ public sealed class DonationPaymentWorker(
 
             foreach (var message in messages)
             {
-                // Deliberadamente sem o stoppingToken: no SIGTERM o Worker para de receber
-                // mensagens novas, mas as que ja estao em voo terminam.
+                // Sem o stoppingToken: no SIGTERM as mensagens em voo terminam.
                 await HandleAsync(message);
             }
 
@@ -84,7 +88,6 @@ public sealed class DonationPaymentWorker(
 
         if (received is null)
         {
-            // Reentregar nao conserta uma mensagem que nunca vai desserializar.
             await AcknowledgeAsync(message, CancellationToken.None);
             return;
         }
@@ -98,9 +101,9 @@ public sealed class DonationPaymentWorker(
         logger.LogInformation(
             "Mensagem {MessageId} desserializada. Iniciando o processamento com teto de {Timeout}.",
             message.MessageId,
-            ProcessingTimeout);
+            processingTimeout);
 
-        using var timeout = new CancellationTokenSource(ProcessingTimeout);
+        using var timeout = new CancellationTokenSource(processingTimeout);
         var stopwatch = Stopwatch.StartNew();
 
         try
@@ -111,8 +114,6 @@ public sealed class DonationPaymentWorker(
             var outcome = await handler.HandleAsync(received, timeout.Token);
             stopwatch.Stop();
 
-            // Ack somente depois do commit: falhar antes disso significa reentrega e, apos o
-            // maxReceiveCount, DLQ.
             await AcknowledgeAsync(message, CancellationToken.None);
 
             logger.LogInformation(
@@ -125,8 +126,6 @@ public sealed class DonationPaymentWorker(
         {
             stopwatch.Stop();
 
-            // O PaymentEvent Critical ja foi gravado pelo caso de uso. Sem ack: a mensagem
-            // volta para a fila.
             logger.LogError(
                 exception,
                 "Mensagem {MessageId} falhou apos {ElapsedMs} ms; nao confirmada e devolvida a fila.",
@@ -172,7 +171,6 @@ public sealed class DonationPaymentWorker(
         }
         catch (Exception exception)
         {
-            // A mensagem sera reentregue; a porta de idempotencia impede o processamento duplo.
             logger.LogError(exception, "Falha ao confirmar a mensagem {MessageId}.", message.MessageId);
         }
     }

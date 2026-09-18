@@ -24,7 +24,6 @@ internal sealed class RandomPaymentSimulator(IOptions<PaymentSimulationOptions> 
                 $"Nao ha taxa de aprovacao configurada para {paymentMethod} em Payments:ApprovalRate.");
         }
 
-        // Random.Shared e thread-safe; varias mensagens podem sortear ao mesmo tempo.
         return Random.Shared.NextDouble() < approvalRate;
     }
 }

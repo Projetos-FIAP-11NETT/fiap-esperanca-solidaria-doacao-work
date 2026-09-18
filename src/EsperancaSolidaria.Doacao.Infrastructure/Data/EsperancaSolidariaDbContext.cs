@@ -20,6 +20,9 @@ public sealed class EsperancaSolidariaDbContext(DbContextOptions<EsperancaSolida
 
     public DbSet<PaymentEvent> PaymentEvents => Set<PaymentEvent>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder) =>
+    protected override void OnModelCreating(ModelBuilder modelBuilder) { 
+
+        modelBuilder.HasDefaultSchema("fundraising");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(EsperancaSolidariaDbContext).Assembly);
+    }
 }

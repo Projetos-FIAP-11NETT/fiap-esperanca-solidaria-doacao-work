@@ -14,7 +14,7 @@ internal sealed class CampaignConfiguration : IEntityTypeConfiguration<Campaign>
 {
     public void Configure(EntityTypeBuilder<Campaign> builder)
     {
-        builder.ToTable("Campaign");
+        builder.ToTable("Campaigns");
 
         builder.HasKey(campaign => campaign.CampaignId);
 
@@ -22,7 +22,6 @@ internal sealed class CampaignConfiguration : IEntityTypeConfiguration<Campaign>
             .HasColumnName("CampaignId")
             .ValueGeneratedNever();
 
-        // Unica coluna que o Worker escreve, e sempre por soma no proprio banco.
         builder.Property(campaign => campaign.TotalRaised)
             .HasColumnName("TotalRaised")
             .HasPrecision(18, 2);

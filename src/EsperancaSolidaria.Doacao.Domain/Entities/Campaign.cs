@@ -26,7 +26,6 @@ public sealed class Campaign
         Status = status;
     }
 
-    // Construtor usado pelo EF Core na materializacao.
     private Campaign()
     {
     }

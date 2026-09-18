@@ -74,7 +74,6 @@ public sealed class ProcessDonationPaymentHandler(
     {
         var donationId = message.DonationId;
 
-        // Porta de idempotencia. Quem nao afeta nenhuma linha chegou atrasado.
         if (await donations.TryStartProcessingAsync(donationId, cancellationToken) == 0)
         {
             logger.LogInformation(
@@ -144,7 +143,6 @@ public sealed class ProcessDonationPaymentHandler(
 
         if (donation is null)
         {
-            // Sem doacao nao ha como gravar PaymentEvent — a tabela referencia DonationId.
             logger.LogWarning(
                 "Mensagem descartada: a doacao {DonationId} nao existe no banco.",
                 donationId);
@@ -154,13 +152,13 @@ public sealed class ProcessDonationPaymentHandler(
         await paymentEvents.RecordAsync(
             donationId,
             PaymentEventType.Warning,
-            $"Mensagem repetida ignorada: a doacao ja esta em {donation.Status}.",
+            $"Mensagem repetida ignorada: a doacao ja esta em {donation.DonationStatus}.",
             cancellationToken);
 
         logger.LogWarning(
             "Doacao {DonationId} ja estava em {Status}; mensagem confirmada sem reprocessar.",
             donationId,
-            donation.Status);
+            donation.DonationStatus);
 
         return PaymentProcessingOutcome.AlreadyProcessed;
     }
@@ -179,8 +177,6 @@ public sealed class ProcessDonationPaymentHandler(
 
         if (credited == 0)
         {
-            // A campanha saiu de Active entre a leitura e o credito. Desfaz tudo e deixa a
-            // mensagem reentregar: no proximo giro ela sera rejeitada pelo caminho normal.
             throw new InvalidOperationException(
                 $"Campanha {donation.CampaignId} deixou de estar ativa durante o processamento da doacao {donation.DonationId}.");
         }
@@ -234,7 +230,6 @@ public sealed class ProcessDonationPaymentHandler(
     {
         logger.LogError(exception, "Falha ao processar o pagamento da doacao {DonationId}.", donationId);
 
-        // O token original pode ja estar cancelado; desfazer e auditar nao sao opcionais.
         try
         {
             await unitOfWork.RollbackAsync(CancellationToken.None);
@@ -254,7 +249,6 @@ public sealed class ProcessDonationPaymentHandler(
         }
         catch (Exception loggingException)
         {
-            // Ultimo recurso: se nem a conexao propria escreve, o log da aplicacao e o registro.
             logger.LogError(
                 loggingException,
                 "Falha ao registrar o PaymentEvent Critical da doacao {DonationId}.",

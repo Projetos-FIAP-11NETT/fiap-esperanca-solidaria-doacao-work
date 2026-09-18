@@ -19,24 +19,22 @@ internal sealed class DonationRepository(EsperancaSolidariaDbContext context) : 
             .AsNoTracking()
             .FirstOrDefaultAsync(donation => donation.DonationId == donationId, cancellationToken);
 
-    // UPDATE "Donation" SET "Status" = 2 WHERE "DonationId" = @id AND "Status" = 1
     public Task<int> TryStartProcessingAsync(Guid donationId, CancellationToken cancellationToken) =>
         context.Donations
             .Where(donation => donation.DonationId == donationId
-                && donation.Status == DonationStatus.Pending)
+                && donation.DonationStatus == DonationStatus.Pending)
             .ExecuteUpdateAsync(
-                setters => setters.SetProperty(donation => donation.Status, DonationStatus.PaymentProcessing),
+                setters => setters.SetProperty(donation => donation.DonationStatus, DonationStatus.PaymentProcessing),
                 cancellationToken);
 
-    // UPDATE "Donation" SET "Status" = @outcome WHERE "DonationId" = @id AND "Status" = 2
     public async Task SetOutcomeAsync(
         Guid donationId,
         DonationStatus outcome,
         CancellationToken cancellationToken) =>
         await context.Donations
             .Where(donation => donation.DonationId == donationId
-                && donation.Status == DonationStatus.PaymentProcessing)
+                && donation.DonationStatus == DonationStatus.PaymentProcessing)
             .ExecuteUpdateAsync(
-                setters => setters.SetProperty(donation => donation.Status, outcome),
+                setters => setters.SetProperty(donation => donation.DonationStatus, outcome),
                 cancellationToken);
 }

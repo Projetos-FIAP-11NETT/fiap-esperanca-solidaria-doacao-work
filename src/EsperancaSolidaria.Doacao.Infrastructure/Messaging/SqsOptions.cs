@@ -22,26 +22,34 @@ public sealed class SqsOptions
     /// </summary>
     public int VisibilityTimeoutSeconds { get; set; } = 60;
 
-    internal IEnumerable<string> Validate()
+    /// <summary>
+    /// Reune todos os problemas da secao de uma vez, para que o arranque mostre a lista
+    /// inteira em vez de derrubar o processo no primeiro erro.
+    /// </summary>
+    internal List<string> Validate()
     {
+        var errors = new List<string>();
+
         if (string.IsNullOrWhiteSpace(QueueUrl))
         {
-            yield return "Sqs:QueueUrl nao foi configurada.";
+            errors.Add("Sqs:QueueUrl nao foi configurada.");
         }
 
         if (MaxNumberOfMessages is < 1 or > 10)
         {
-            yield return "Sqs:MaxNumberOfMessages precisa estar entre 1 e 10.";
+            errors.Add("Sqs:MaxNumberOfMessages precisa estar entre 1 e 10.");
         }
 
         if (WaitTimeSeconds is < 0 or > 20)
         {
-            yield return "Sqs:WaitTimeSeconds precisa estar entre 0 e 20.";
+            errors.Add("Sqs:WaitTimeSeconds precisa estar entre 0 e 20.");
         }
 
         if (VisibilityTimeoutSeconds is < 0 or > 43200)
         {
-            yield return "Sqs:VisibilityTimeoutSeconds precisa estar entre 0 e 43200.";
+            errors.Add("Sqs:VisibilityTimeoutSeconds precisa estar entre 0 e 43200.");
         }
+
+        return errors;
     }
 }

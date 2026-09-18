@@ -1,4 +1,5 @@
 using EsperancaSolidaria.Doacao.Application.Commands;
+using EsperancaSolidaria.Doacao.Application.Interfaces;
 using EsperancaSolidaria.Doacao.Domain.Entities;
 using EsperancaSolidaria.Doacao.Domain.Enums;
 
@@ -10,6 +11,7 @@ public sealed class ProcessDonationPaymentHandlerTests
 {
     private static readonly Guid DonationId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid CampaignId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    private const decimal Amount = 150m;
 
     [Fact]
     public async Task Pagamento_aprovado_credita_a_campanha_e_registra_a_trilha()
@@ -19,17 +21,19 @@ public sealed class ProcessDonationPaymentHandlerTests
         var outcome = await scenario.HandleAsync();
 
         Assert.Equal(PaymentProcessingOutcome.Approved, outcome);
-        Assert.Equal(DonationStatus.Approved, scenario.Donations.Current!.Status);
-        Assert.Equal(150m, scenario.Campaigns.Credited);
-        Assert.True(scenario.UnitOfWork.Committed);
 
-        // Pending -> PaymentProcessing -> Approved, cada passo com o seu PaymentEvent.
-        Assert.Equal(
-            [DonationStatus.PaymentProcessing, DonationStatus.Approved],
-            scenario.Donations.Transitions);
-        Assert.Equal(2, scenario.PaymentEvents.Recorded.Count);
-        Assert.All(scenario.PaymentEvents.Recorded, recorded =>
-            Assert.Equal(PaymentEventType.Info, recorded.Type));
+        scenario.Donations.Verify(
+            d => d.SetOutcomeAsync(DonationId, DonationStatus.Approved, It.IsAny<CancellationToken>()),
+            Times.Once);
+        scenario.Campaigns.Verify(
+            c => c.AddToTotalRaisedAsync(CampaignId, Amount, It.IsAny<CancellationToken>()),
+            Times.Once);
+        scenario.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+
+        scenario.PaymentEvents.Verify(
+            p => p.RecordAsync(DonationId, PaymentEventType.Info, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
+        scenario.PaymentEvents.VerifyNoOtherCalls();
     }
 
     [Fact]
@@ -40,9 +44,14 @@ public sealed class ProcessDonationPaymentHandlerTests
         var outcome = await scenario.HandleAsync();
 
         Assert.Equal(PaymentProcessingOutcome.Rejected, outcome);
-        Assert.Equal(DonationStatus.Rejected, scenario.Donations.Current!.Status);
-        Assert.Equal(0m, scenario.Campaigns.Credited);
-        Assert.True(scenario.UnitOfWork.Committed);
+
+        scenario.Donations.Verify(
+            d => d.SetOutcomeAsync(DonationId, DonationStatus.Rejected, It.IsAny<CancellationToken>()),
+            Times.Once);
+        scenario.Campaigns.Verify(
+            c => c.AddToTotalRaisedAsync(It.IsAny<Guid>(), It.IsAny<decimal>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        scenario.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Theory]
@@ -55,14 +64,22 @@ public sealed class ProcessDonationPaymentHandlerTests
         var outcome = await scenario.HandleAsync();
 
         Assert.Equal(PaymentProcessingOutcome.Rejected, outcome);
-        Assert.Equal(DonationStatus.Rejected, scenario.Donations.Current!.Status);
-        Assert.Equal(0m, scenario.Campaigns.Credited);
 
-        // O sorteio nem chega a acontecer: a regra de negocio decide antes.
-        Assert.Equal(0, scenario.Simulator.Calls);
-        Assert.Contains(
-            scenario.PaymentEvents.Recorded,
-            recorded => recorded.Observation.Contains(campaignStatus.ToString(), StringComparison.Ordinal));
+        scenario.Donations.Verify(
+            d => d.SetOutcomeAsync(DonationId, DonationStatus.Rejected, It.IsAny<CancellationToken>()),
+            Times.Once);
+        scenario.Campaigns.Verify(
+            c => c.AddToTotalRaisedAsync(It.IsAny<Guid>(), It.IsAny<decimal>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        scenario.Simulator.Verify(s => s.Approves(It.IsAny<PaymentMethod>()), Times.Never);
+
+        scenario.PaymentEvents.Verify(
+            p => p.RecordAsync(
+                DonationId,
+                PaymentEventType.Info,
+                It.Is<string>(observation => observation.Contains(campaignStatus.ToString(), StringComparison.Ordinal)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -73,29 +90,38 @@ public sealed class ProcessDonationPaymentHandlerTests
         var outcome = await scenario.HandleAsync();
 
         Assert.Equal(PaymentProcessingOutcome.Rejected, outcome);
-        Assert.Equal(DonationStatus.Rejected, scenario.Donations.Current!.Status);
-        Assert.Equal(0m, scenario.Campaigns.Credited);
+
+        scenario.Donations.Verify(
+            d => d.SetOutcomeAsync(DonationId, DonationStatus.Rejected, It.IsAny<CancellationToken>()),
+            Times.Once);
+        scenario.Campaigns.Verify(
+            c => c.AddToTotalRaisedAsync(It.IsAny<Guid>(), It.IsAny<decimal>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
     public async Task Mensagem_repetida_registra_warning_e_nao_credita_de_novo()
     {
-        // Doacao ja aprovada por uma execucao anterior: e a reentrega do SQS chegando.
         var scenario = new Scenario(approves: true, donationStatus: DonationStatus.Approved);
 
         var outcome = await scenario.HandleAsync();
 
         Assert.Equal(PaymentProcessingOutcome.AlreadyProcessed, outcome);
-        Assert.Equal(DonationStatus.Approved, scenario.Donations.Current!.Status);
-        Assert.Empty(scenario.Donations.Transitions);
-        Assert.Equal(0m, scenario.Campaigns.Credited);
-        Assert.Equal(0, scenario.Simulator.Calls);
 
-        var recorded = Assert.Single(scenario.PaymentEvents.Recorded);
-        Assert.Equal(PaymentEventType.Warning, recorded.Type);
+        scenario.Donations.Verify(
+            d => d.SetOutcomeAsync(It.IsAny<Guid>(), It.IsAny<DonationStatus>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        scenario.Campaigns.Verify(
+            c => c.AddToTotalRaisedAsync(It.IsAny<Guid>(), It.IsAny<decimal>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        scenario.Simulator.Verify(s => s.Approves(It.IsAny<PaymentMethod>()), Times.Never);
 
-        // A mensagem e confirmada: reentregar de novo nao mudaria nada.
-        Assert.True(scenario.UnitOfWork.Committed);
+        scenario.PaymentEvents.Verify(
+            p => p.RecordAsync(DonationId, PaymentEventType.Warning, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        scenario.PaymentEvents.VerifyNoOtherCalls();
+
+        scenario.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -106,8 +132,14 @@ public sealed class ProcessDonationPaymentHandlerTests
         var outcome = await scenario.HandleAsync();
 
         Assert.Equal(PaymentProcessingOutcome.AlreadyProcessed, outcome);
-        Assert.Equal(0m, scenario.Campaigns.Credited);
-        Assert.Equal(PaymentEventType.Warning, Assert.Single(scenario.PaymentEvents.Recorded).Type);
+
+        scenario.Campaigns.Verify(
+            c => c.AddToTotalRaisedAsync(It.IsAny<Guid>(), It.IsAny<decimal>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        scenario.PaymentEvents.Verify(
+            p => p.RecordAsync(DonationId, PaymentEventType.Warning, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        scenario.PaymentEvents.VerifyNoOtherCalls();
     }
 
     [Fact]
@@ -119,8 +151,7 @@ public sealed class ProcessDonationPaymentHandlerTests
 
         Assert.Equal(PaymentProcessingOutcome.DonationNotFound, outcome);
 
-        // PaymentEvent referencia DonationId: sem doacao nao ha o que registrar.
-        Assert.Empty(scenario.PaymentEvents.Recorded);
+        scenario.PaymentEvents.VerifyNoOtherCalls();
     }
 
     [Fact]
@@ -132,18 +163,26 @@ public sealed class ProcessDonationPaymentHandlerTests
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(scenario.HandleAsync);
 
         Assert.Same(failure, thrown);
-        Assert.True(scenario.UnitOfWork.RolledBack);
-        Assert.False(scenario.UnitOfWork.Committed);
 
-        // A doacao continua Pending: falha de infraestrutura nunca vira Rejected.
-        Assert.Equal(DonationStatus.Pending, scenario.Donations.Current!.Status);
-        Assert.Equal(0m, scenario.Campaigns.Credited);
+        scenario.UnitOfWork.Verify(u => u.RollbackAsync(It.IsAny<CancellationToken>()), Times.Once);
+        scenario.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
 
-        // O Critical e gravado por fora da transacao desfeita — nunca falhar sem logar.
-        Assert.Equal(failure.Message, Assert.Single(scenario.PaymentEventLogger.Critical));
+        scenario.Donations.Verify(
+            d => d.SetOutcomeAsync(It.IsAny<Guid>(), It.IsAny<DonationStatus>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        scenario.Campaigns.Verify(
+            c => c.AddToTotalRaisedAsync(It.IsAny<Guid>(), It.IsAny<decimal>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        scenario.PaymentEventLogger.Verify(
+            l => l.RecordCriticalAsync(DonationId, failure.Message, It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
-    /// <summary>Monta o caso de uso com todas as ports dubladas.</summary>
+    /// <summary>
+    /// Monta o caso de uso com todas as ports substituidas por mocks, de modo que o
+    /// processamento inteiro — idempotencia inclusive — seja exercitado sem Postgres e sem SQS.
+    /// </summary>
     private sealed class Scenario
     {
         public Scenario(
@@ -154,40 +193,61 @@ public sealed class ProcessDonationPaymentHandlerTests
             bool donation = true,
             bool campaign = true)
         {
-            Donations = new FakeDonationRepository(
-                donation
-                    ? new Donation(DonationId, CampaignId, 150m, PaymentMethod.Pix, donationStatus)
-                    : null)
+            Donation? storedDonation = donation
+                ? new Donation(DonationId, CampaignId, Amount, PaymentMethod.Pix, donationStatus)
+                : null;
+
+            Campaign? storedCampaign = campaign
+                ? new Campaign(CampaignId, 1_000m, campaignStatus)
+                : null;
+
+            Donations
+                .Setup(d => d.GetAsync(DonationId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(storedDonation);
+
+            var startProcessing = Donations.Setup(
+                d => d.TryStartProcessingAsync(DonationId, It.IsAny<CancellationToken>()));
+
+            if (failOnStart is not null)
             {
-                FailOnStart = failOnStart,
-            };
+                startProcessing.ThrowsAsync(failOnStart);
+            }
+            else
+            {
+                startProcessing.ReturnsAsync(donationStatus == DonationStatus.Pending && donation ? 1 : 0);
+            }
 
-            Campaigns = new FakeCampaignRepository(
-                campaign ? new Campaign(CampaignId, 1_000m, campaignStatus) : null);
+            Campaigns
+                .Setup(c => c.GetAsync(CampaignId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(storedCampaign);
 
-            Simulator = new StubPaymentSimulator(approves);
+            Campaigns
+                .Setup(c => c.AddToTotalRaisedAsync(CampaignId, It.IsAny<decimal>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(campaignStatus == CampaignStatus.Active && campaign ? 1 : 0);
+
+            Simulator.Setup(s => s.Approves(It.IsAny<PaymentMethod>())).Returns(approves);
 
             Handler = new ProcessDonationPaymentHandler(
-                Donations,
-                Campaigns,
-                PaymentEvents,
-                PaymentEventLogger,
-                Simulator,
-                UnitOfWork,
+                Donations.Object,
+                Campaigns.Object,
+                PaymentEvents.Object,
+                PaymentEventLogger.Object,
+                Simulator.Object,
+                UnitOfWork.Object,
                 NullLogger<ProcessDonationPaymentHandler>.Instance);
         }
 
-        public FakeDonationRepository Donations { get; }
+        public Mock<IDonationRepository> Donations { get; } = new();
 
-        public FakeCampaignRepository Campaigns { get; }
+        public Mock<ICampaignRepository> Campaigns { get; } = new();
 
-        public FakePaymentEventRepository PaymentEvents { get; } = new();
+        public Mock<IPaymentEventRepository> PaymentEvents { get; } = new();
 
-        public FakePaymentEventLogger PaymentEventLogger { get; } = new();
+        public Mock<IPaymentEventLogger> PaymentEventLogger { get; } = new();
 
-        public FakeUnitOfWork UnitOfWork { get; } = new();
+        public Mock<IUnitOfWork> UnitOfWork { get; } = new();
 
-        public StubPaymentSimulator Simulator { get; }
+        public Mock<IPaymentSimulator> Simulator { get; } = new();
 
         private ProcessDonationPaymentHandler Handler { get; }
 

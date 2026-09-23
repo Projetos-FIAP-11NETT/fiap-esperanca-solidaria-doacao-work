@@ -11,6 +11,13 @@ using EsperancaSolidaria.Doacao.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using FiapEsperancaSolidaria.Doacao.Infrastructure.Abstractions;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Exporter;
+using OpenTelemetry.Metrics;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Builder;
 
 namespace EsperancaSolidaria.Doacao.Infrastructure;
 
@@ -113,5 +120,45 @@ public static class DependencyInjection
             throw new InvalidOperationException(
                 $"Configuracao invalida:{Environment.NewLine} - {string.Join($"{Environment.NewLine} - ", errors)}");
         }
+    }
+
+    public static IServiceCollection AddObservability(this IServiceCollection services, IConfiguration configuration)
+    {
+        var otelConfig = configuration.GetSection("OpenTelemetry");
+        var serviceName = otelConfig["ServiceName"] ?? "doacao-worker";
+        var tempoEndpoint = otelConfig["TempoEndpoint"] ?? "http://tempo.monitoring:4318";
+
+        services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource.AddService(serviceName: serviceName))
+            .WithTracing(tracing =>
+            {
+                tracing
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    .AddOtlpExporter(options =>
+                    {
+                        options.Endpoint = new Uri(tempoEndpoint);
+                        options.Protocol = OtlpExportProtocol.HttpProtobuf;
+                    });
+            })
+            .WithMetrics(metrics =>
+            {
+                metrics
+                    .AddAspNetCoreInstrumentation()
+                    .AddRuntimeInstrumentation()
+                    .AddPrometheusExporter(options =>
+                    {
+                        options.ScrapeResponseCacheDurationMilliseconds = 0;
+                    });
+            });
+
+        return services;
+    }
+
+    public static IEndpointRouteBuilder MapObservabilityEndpoints(this IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapPrometheusScrapingEndpoint();
+
+        return endpoints;
     }
 }

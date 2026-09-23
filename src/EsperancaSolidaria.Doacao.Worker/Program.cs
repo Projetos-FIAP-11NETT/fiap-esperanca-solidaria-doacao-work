@@ -17,10 +17,13 @@ builder.Logging.AddConsoleFormatter<DoacaoWorkerConsoleFormatter, ConsoleFormatt
 });
 
 builder.Services.Configure<WorkerOptions>(builder.Configuration.GetSection(WorkerOptions.SectionName));
+builder.Services.AddObservability(builder.Configuration);
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddHostedService<DonationPaymentWorker>();
 
 var app = builder.Build();
+
+app.MapObservabilityEndpoints();
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 

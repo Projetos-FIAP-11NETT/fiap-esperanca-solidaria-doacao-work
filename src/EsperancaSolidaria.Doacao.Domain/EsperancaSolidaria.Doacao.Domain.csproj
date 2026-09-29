@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Camada mais interna: nao referencia nenhum outro projeto nem pacote de infraestrutura.
+       Se um dia precisar de EF Core, AWS SDK ou ASP.NET aqui, a dependencia esta invertida. -->
+
+</Project>
